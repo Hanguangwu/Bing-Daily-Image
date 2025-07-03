@@ -116,7 +116,7 @@ def merge_and_update_images(new_images, existing_index):
             logging.info("保存今天的图片为 daily.webp / daily.jpeg / original.jpeg , 今日时间: " + date)
             save_image(img, os.path.join(STATIC_FOLDER, "daily.webp"))
             img.save(os.path.join(STATIC_FOLDER, "daily.jpeg"), "JPEG", quality=95, optimize=True)
-            img.save(os.path.join(STATIC_FOLDER, "original.jpeg"), "JPEG", quality=100)
+            img.save(os.path.join(STATIC_FOLDER, "original.jpeg"), "JPEG", quality=30)
             logging.info("保存了 daily.webp / daily.jpeg / original.jpeg")
             
         updated_index.append({
@@ -134,7 +134,7 @@ def merge_and_update_images(new_images, existing_index):
     combined_index.sort(key=lambda x: x["date"], reverse=True)
     
     # 保留最近30天的数据
-    thirty_days_ago = (datetime.now() - timedelta(days=100)).strftime("%Y-%m-%d")
+    thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     filtered_index = []
     removed_files = set()
     
