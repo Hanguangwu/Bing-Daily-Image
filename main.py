@@ -122,7 +122,7 @@ def merge_and_update_images(new_images, existing_index):
         updated_index.append({
             "filename": filename,
             "date": date,
-            "path": f"/picture/{filename}",
+            "path": f"picture/{filename}",
             "copyright": img_info.get("copyright", ""),
             "url": img_info.get("url", "")
         })

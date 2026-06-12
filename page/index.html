@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>每日一图 - 留存世间奇景</title>
-    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
     <link
       rel="stylesheet"
       href="https://fontsapi.zeoseven.com/488/main/result.css"
@@ -654,13 +654,19 @@
             yiyanContent.textContent = '生活，是一场无法回放的电影，我们都是自己的导演。';
           });
 
-        fetch("/picture/index.json")
+        fetch("picture/index.json")
           .then((res) => res.json())
             .then((data) => {
             if (!Array.isArray(data) || data.length === 0) {
               console.error("index.json 内容不合法");
               return;
             }
+
+            // 修正路径：去除前导/，适配 GitHub Pages 子路径部署
+            data = data.map(item => ({
+              ...item,
+              path: item.path.replace(/^\//, '')
+            }));
 
             // 默认将第一张作为今日图
             const today = data[0];
