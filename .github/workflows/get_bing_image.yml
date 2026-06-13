@@ -1,83 +1,84 @@
 name: Daily Get Bing Image
 
+# 权限统一配置（解决推送/删除运行记录权限不足）
+permissions:
+  contents: write
+  actions: write
+
 on:
+  # UTC 时区：北京时间 04:00 → 换算 UTC 20:00 (前一天)
   schedule:
-    - cron: "0 4 * * *"
-  workflow_dispatch:
+    - cron: "0 20 * * *"
+  workflow_dispatch: # 支持手动触发
 
 jobs:
   get_bing_image:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Pull latest repository
-      uses: actions/checkout@v4
+      - name: Pull latest repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整git历史，方便分支操作
 
-    - name: Cache pip packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      # Python 环境
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Install python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      # 安装依赖
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow requests
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install Pillow requests
+      # 拉取 page 分支内容到 static 目录
+      - name: Fetch page branch content into static/
+        run: |
+          if git ls-remote --exit-code --heads origin page; then
+            git fetch origin page
+            rm -rf static
+            mkdir -p static
+            git --work-tree=static checkout origin/page -- .
+          else
+            echo "No 'page' branch exists, creating empty static dir."
+            mkdir -p static
+          fi
+          ls -la static
 
-    - name: Fetch page branch content into static/
-      run: |
-        if git ls-remote --exit-code --heads origin page; then
-          git fetch origin page
-          rm -rf static
-          mkdir static
-          git --work-tree=static checkout origin/page -- .
-        else
-          echo "No 'page' branch exists, skipping fetch."
-          mkdir -p static
-        fi
-        ls
+      # 执行爬虫脚本
+      - name: Run Python script to get Bing image
+        run: python main.py
 
-    - name: Run Python script to get Bing image
-      run: python main.py
+      # 配置 Git 用户名邮箱
+      - name: Configure git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
 
-    - name: Configure git
-      run: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
+      # 提交并推送到 page 分支（标准写法，去掉 git init）
+      - name: Commit and push to page branch
+        run: |
+          # 进入静态目录，基于 page 分支更新
+          cd static
+          git add .
+          git diff --quiet && git diff --staged --quiet || {
+            git commit -m "⏱️GitHub Action 每日定时更新 Bing 壁纸"
+            git push origin HEAD:page
+          }
 
-    - name: Commit and push to page branch
-      run: |
-        cp ./page/index.html static/
-        cp ./page/favicon.ico static/
-        cp ./page/readme.md static/
-        cp ./page/edgeone.json static/
-        cp ./page/CNAME static/
-        cd static
-        git init
-        git checkout -b page
-        git add .
-        git commit -m "⏱️GitHub Action每日定时更新"
-        git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git page
+      # 清理历史运行记录
+      - name: Delete Workflow Runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          retain_days: 30
+          keep_minimum_runs: 6
 
-    - name: Delete Workflow Runs
-      uses: Mattraks/delete-workflow-runs@v2
-      with:
-        retain_days: 30
-        keep_minimum_runs: 6
-
+  # 单独保活任务，防止仓库定时任务休眠
   keepalive-workflow:
     name: Keepalive Workflow
     if: ${{ always() }}
-    needs: get_bing_image
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
+    needs: get_bing_image
     steps:
       - uses: liskin/gh-workflow-keepalive@v1
