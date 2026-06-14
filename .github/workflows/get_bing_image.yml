@@ -1,15 +1,14 @@
 name: Daily Get Bing Image
 
-# 权限统一配置（解决推送/删除运行记录权限不足）
 permissions:
   contents: write
   actions: write
 
 on:
-  # UTC 时区：北京时间 04:00 → 换算 UTC 20:00 (前一天)
   schedule:
+    # 北京时间 04:00 执行 = UTC 前一天 20:00
     - cron: "0 20 * * *"
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   get_bing_image:
@@ -18,21 +17,18 @@ jobs:
       - name: Pull latest repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 拉取完整git历史，方便分支操作
+          fetch-depth: 0
 
-      # Python 环境
       - name: Install python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      # 安装依赖
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install Pillow requests
 
-      # 拉取 page 分支内容到 static 目录
       - name: Fetch page branch content into static/
         run: |
           if git ls-remote --exit-code --heads origin page; then
@@ -46,39 +42,38 @@ jobs:
           fi
           ls -la static
 
-      # 执行爬虫脚本
       - name: Run Python script to get Bing image
         run: python main.py
 
-      # 配置 Git 用户名邮箱
-      - name: Configure git
+      # 拷贝 page 目录静态资源到 static（保留你原有逻辑）
+      - name: Copy page assets to static
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          cp -f ./page/index.html static/
+          cp -f ./page/favicon.ico static/
+          cp -f ./page/readme.md static/
+          cp -f ./page/edgeone.json static/
+          cp -f ./page/CNAME static/
 
-      # 提交并推送到 page 分支（标准写法，去掉 git init）
-      - name: Commit and push to page branch
-        run: |
-          # 进入静态目录，基于 page 分支更新
-          cd static
-          git add .
-          git diff --quiet && git diff --staged --quiet || {
-            git commit -m "⏱️GitHub Action 每日定时更新 Bing 壁纸"
-            git push origin HEAD:page
-          }
+      # 专用 Action 推送 static 目录到 page 分支，无视 .gitignore
+      - name: Deploy static to page branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./static
+          publish_branch: page  # 指定推送到 page 分支
+          commit_message: "⏱️GitHub Action 每日定时更新 Bing 壁纸"
+          force_orphan: false
 
-      # 清理历史运行记录
       - name: Delete Workflow Runs
         uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 30
           keep_minimum_runs: 6
 
-  # 单独保活任务，防止仓库定时任务休眠
   keepalive-workflow:
     name: Keepalive Workflow
     if: ${{ always() }}
-    runs-on: ubuntu-latest
     needs: get_bing_image
+    runs-on: ubuntu-latest
     steps:
       - uses: liskin/gh-workflow-keepalive@v1
